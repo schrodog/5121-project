@@ -1,5 +1,7 @@
 .vscode/
 .ipynb_checkpoints/
-*.pdf
 *.ipynb
+
+__pycache__
+
 

@@ -4,6 +4,8 @@ import os
 import numpy as np
 import pandas as pd
 from plotnine import *
+from apyori import apriori
+
 
 # %%
 
@@ -68,11 +70,6 @@ stat_df = pd.DataFrame({
   'vroot': uniq_elem
 })
 
-# %%
-stat_df.plot(kind='bar')
-
-# %%
-stat_df['vroot'] = CategoricalDtype(stat_df['vroot'], categories=stat_df['visit'], ordered=True)
 
 # %% show count of visits to same vroot
 gg = (ggplot(stat_df)
@@ -95,22 +92,10 @@ gg = (ggplot(stat_df)
 print(gg)
 gg.save('visit_vroot.pdf')
 
-# %%
-stat_df
-
-# %%
-# investigate users
-# visit_pd[[10076, 10001, 10099, 10003, 10006, 10089, 10002, 10100]]
-visit_pd[41033]
-
-# %%
-# attr_pd[attr_pd['id'].isin([1205,1001,1043,1004,1000,1001,1002,1003,1018])]
-attr_pd[attr_pd['id'].isin([1008,1007,1037,1009,1032,1017,1034,1018])]
-
 
 # %% filter out vroot with only 1 visitor
 one_vroot = uniq_elem[counts == 1]
-multiple_vroot = uniq_elem[counts > 5]
+multiple_vroot = uniq_elem[counts > 1]
 target_attrs_df = attr_pd.loc[attr_pd.index.isin(multiple_vroot)]
 
 # %% filter 1 user {41033} by attr 
@@ -133,29 +118,67 @@ visit_full_df = pd.DataFrame(
 visit_full_df
 
 # %%
-multiple_vroot, len(multiple_vroot)
+# select rich features (264 -> 162) left
+from sklearn.feature_selection import VarianceThreshold
+
+percent = 0.999
+sel = VarianceThreshold(percent * (1-percent))
+visit_sel_value = sel.fit_transform(visit_full_df.values)
+
+# %% row from 32710 -> 32608
+# filtered all user without 1's
+
+filters = np.where(np.sum(visit_sel_value, axis=1) == 0, False, True)
+
+visit_sel_df = pd.DataFrame(
+  visit_sel_value[filters],
+  index = visit_full_df.index[filters]
+)
+
+visit_sel_df
 
 # %%
+from sklearn.cluster import AgglomerativeClustering
 from scipy.cluster.hierarchy import dendrogram, linkage
 from matplotlib import pyplot as plt
+from apyori import apriori
 %matplotlib tk
 
 # %%
-part_df = visit_full_df[:100]
-z = linkage(part_df, method='ward')
-z
+part_df = visit_sel_df[:20000]
 
 # %%
+z = linkage(part_df, method='ward')
+
 fig, ax = plt.subplots(1,1, figsize=(50,20))
 ax.set_title("hierarchical clustering")
 ax.set_xlabel("distance")
 ax.set_ylabel("id")
 
-dendrogram(z, labels=part_df.index, leaf_rotation=0, orientation='top', color_threshold=20, above_threshold_color='grey' )
+gg = dendrogram(z, labels=part_df.index, leaf_rotation=0, orientation='top', color_threshold=20, above_threshold_color='grey' )
 ax.set_xticklabels(ax.get_xticklabels(), rotation=40, ha="right", fontsize=15)
 plt.yticks(size=20)
 plt.savefig("dendro.png", format="png", dpi=80, bbox_inches='tight')
 
 # %%
-z = None
+num_cluster = 55
+cluster = AgglomerativeClustering(n_clusters=num_cluster, affinity='euclidean', linkage='ward')
+cluster_data = cluster.fit_predict(part_df)
+
+user_group = [part_df.index[cluster_data == i] for i in range(num_cluster)]
+
+transactions = [visit_pd[visit_pd.index.isin(user_group[i])].values for i in range(num_cluster)]
+
+# %%
+results = [list(apriori(transactions[i], min_support=0.4, min_confidence=0.1)) for i in range(num_cluster)]
+print(len(results))
+# print(results)
+
+# %%
+results[3:6]
+
+
+
+
+
 
