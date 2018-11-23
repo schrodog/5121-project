@@ -177,9 +177,11 @@ def gen_support_records(transaction_manager, min_support, **kwargs):
 
     Keyword arguments:
         max_length -- The maximum length of relations (integer).
+        min_length -- The minimum length of relations (integer).
     """
     # Parse arguments.
     max_length = kwargs.get('max_length')
+    min_length = kwargs.get('min_length')
 
     # For testing.
     _create_next_candidates = kwargs.get(
@@ -191,8 +193,9 @@ def gen_support_records(transaction_manager, min_support, **kwargs):
     while candidates:
         relations = set()
         for relation_candidate in candidates:
+            print(relation_candidate)
             support = transaction_manager.calc_support(relation_candidate)
-            if support < min_support:
+            if support < min_support or len(relation_candidate) <= min_length:
                 continue
             candidate_set = frozenset(relation_candidate)
             relations.add(candidate_set)
@@ -260,16 +263,21 @@ def apriori(transactions, **kwargs):
         min_confidence -- The minimum confidence of relations (float).
         min_lift -- The minimum lift of relations (float).
         max_length -- The maximum length of the relation (integer).
+        min_length -- The minimum length of the relation (integer).
     """
     # Parse the arguments.
     min_support = kwargs.get('min_support', 0.1)
     min_confidence = kwargs.get('min_confidence', 0.0)
     min_lift = kwargs.get('min_lift', 0.0)
     max_length = kwargs.get('max_length', None)
+    min_length = kwargs.get('min_length', None)
 
     # Check arguments.
     if min_support <= 0:
         raise ValueError('minimum support must be > 0')
+
+    if min_length > max_length:
+        raise ValueError('min length must be smaller than max length')
 
     # For testing.
     _gen_support_records = kwargs.get(
@@ -282,7 +290,7 @@ def apriori(transactions, **kwargs):
     # Calculate supports.
     transaction_manager = TransactionManager.create(transactions)
     support_records = _gen_support_records(
-        transaction_manager, min_support, max_length=max_length)
+        transaction_manager, min_support, max_length=max_length, min_length=min_length)
 
     # Calculate ordered stats.
     for support_record in support_records:
@@ -431,6 +439,7 @@ def main(**kwargs):
     result = _apriori(
         transactions,
         max_length=args.max_length,
+        min_length=args.min_length,
         min_support=args.min_support,
         min_confidence=args.min_confidence)
     for record in result:
