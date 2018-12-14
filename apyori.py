@@ -57,7 +57,7 @@ class TransactionManager(object):
             self.__transaction_index_map[item].add(self.__num_transaction)
         self.__num_transaction += 1
 
-    def calc_support(self, items):
+    def calc_support(self, items, percent=True):
         """
         Returns a support for items.
 
@@ -88,7 +88,10 @@ class TransactionManager(object):
                 sum_indexes = sum_indexes.intersection(indexes)
 
         # Calculate and return the support.
-        return float(len(sum_indexes)) / self.__num_transaction
+        if percent:
+            return float(len(sum_indexes)) / self.__num_transaction
+        else:
+            return len(sum_indexes)
 
     def initial_candidates(self):
         """
@@ -167,7 +170,7 @@ def create_next_candidates(prev_candidates, length):
     return next_candidates
 
 
-def gen_support_records(transaction_manager, min_support, **kwargs):
+def gen_support_records(transaction_manager, min_support, percent=True, **kwargs):
     """
     Returns a generator of support records with given transactions.
 
@@ -193,13 +196,13 @@ def gen_support_records(transaction_manager, min_support, **kwargs):
     while candidates:
         relations = set()
         for relation_candidate in candidates:
-            print(relation_candidate)
-            support = transaction_manager.calc_support(relation_candidate)
-            if support < min_support or len(relation_candidate) <= min_length:
+            support = transaction_manager.calc_support(relation_candidate, percent)
+            if support < min_support:
                 continue
             candidate_set = frozenset(relation_candidate)
             relations.add(candidate_set)
-            yield SupportRecord(candidate_set, support)
+            if len(candidate_set) >= min_length:
+                yield SupportRecord(candidate_set, support)
         length += 1
         if max_length and length > max_length:
             break
@@ -223,6 +226,7 @@ def gen_ordered_statistics(transaction_manager, record):
         lift = confidence / transaction_manager.calc_support(items_add)
         yield OrderedStatistic(
             frozenset(items_base), frozenset(items_add), confidence, lift)
+        # yield (items_base, items_add)
 
 
 def filter_ordered_statistics(ordered_statistics, **kwargs):
@@ -270,14 +274,15 @@ def apriori(transactions, **kwargs):
     min_confidence = kwargs.get('min_confidence', 0.0)
     min_lift = kwargs.get('min_lift', 0.0)
     max_length = kwargs.get('max_length', None)
-    min_length = kwargs.get('min_length', None)
+    min_length = kwargs.get('min_length', 0)
+    percent = kwargs.get('percent', True)
 
     # Check arguments.
     if min_support <= 0:
         raise ValueError('minimum support must be > 0')
 
-    if min_length > max_length:
-        raise ValueError('min length must be smaller than max length')
+    # if min_length > max_length:
+    #     raise ValueError('min length must be smaller than max length')
 
     # For testing.
     _gen_support_records = kwargs.get(
@@ -290,7 +295,8 @@ def apriori(transactions, **kwargs):
     # Calculate supports.
     transaction_manager = TransactionManager.create(transactions)
     support_records = _gen_support_records(
-        transaction_manager, min_support, max_length=max_length, min_length=min_length)
+        transaction_manager, min_support, max_length=max_length, min_length=min_length,
+        percent=percent)
 
     # Calculate ordered stats.
     for support_record in support_records:
@@ -303,8 +309,10 @@ def apriori(transactions, **kwargs):
         )
         if not ordered_statistics:
             continue
-        yield RelationRecord(
-            support_record.items, support_record.support, ordered_statistics)
+        # yield RelationRecord(
+        #     support_record.items, support_record.support, ordered_statistics)
+
+        yield [(list(getattr(i, 'items_base')), list(getattr(i, 'items_add'))) for i in ordered_statistics]
 
 
 ################################################################################

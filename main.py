@@ -7,9 +7,14 @@ from plotnine import *
 from apyori import apriori
 
 
+# %%
+import socket
+hostname = socket.gethostname()
+hostname
 
 # %%
-data_file = os.getcwd()+'data/anonymous-msweb.data'
+
+data_file = os.getcwd()+'/data/anonymous-msweb.data'
 
 attr_data, attr_id = [], []
 visit_data = {}
@@ -162,32 +167,119 @@ part_df = visit_sel_df[:20000]
 # plt.savefig("outputs/dendro.png", format="png", dpi=80, bbox_inches='tight')
 
 # %%
-num_cluster = 55
-cluster = AgglomerativeClustering(n_clusters=num_cluster, affinity='euclidean', linkage='ward')
-cluster_data = cluster.fit_predict(part_df)
 
-user_group = [part_df.index[cluster_data == i] for i in range(num_cluster)]
+import sys
+import multiprocessing
 
-transactions = [visit_pd[visit_pd.index.isin(user_group[i])].values for i in range(num_cluster)]
-
-# %%
-results = [list(apriori(transactions[i], min_support=0.4, min_confidence=0.1)) for i in range(num_cluster)]
-print(len(results))
-# print(results)
-
-# %%
-results[3:6]
+manager = multiprocessing.Manager()
 
 # %%
 
+def getTrans(num_cluster):
+  cluster = AgglomerativeClustering(n_clusters=num_cluster, affinity='euclidean', linkage='ward')
+  cluster_data = cluster.fit_predict(part_df)
 
+  user_group = [part_df.index[cluster_data == i] for i in range(num_cluster)]
+  transactions = [visit_pd[visit_pd.index.isin(user_group[i])].values for i in range(num_cluster)]
 
+  return (num_cluster, transactions)
 
+pool = multiprocessing.Pool(4)
+res = pool.map_async(getTrans, (i for i in range(25,26,5)) )
+pool.close()
+pool.join()
 
+# %%
+def getApiori(arg):
+  support, conf, lis = arg
+  l = []
+  for item in lis:
+    num_cluster, transactions = item
+    results = [list(apriori(transactions[i], min_support=support, min_confidence=conf, min_length=2, percent=True)) for i in range(num_cluster)]
+    results = [i for i in results if i]
+    l.append((num_cluster, results) )
+  return (("support", np.around(support,1),"conf", np.around(conf,1),l) )
 
+pool = multiprocessing.Pool(10)
+api = pool.map_async(getApiori, ((i, j, res.get()) for i in np.linspace(0.1,0.9,9) \
+                                  for j in np.linspace(0.1,0.9,9) ))
+pool.close()
+pool.join()
 
+# %%
+api.get()
 
+# %%
+data = api.get()
+d2 = [[item for sublist in i for item in sublist] for i in data[30][4][0][1]]
+for i in d2:
+  print(i)
 
+# %%
+# total 30 cluster, highest: 27
+
+[len(i[4][0][1]) for i in api.get()]
+
+# %%
+target_attrs_df.loc[target_attrs_df.index.isin([1017, 1074, 1009])]
+
+# %%
+ps1 = []
+for leng in range(len(d2)):
+  for src in d2[leng]:
+    for i in d2[leng+1:]:
+      for j in i:
+        if j==src:
+          if not j in ps1:
+            ps1.append(j)
+
+for i in ps1:
+  print(i)
+
+# %% get clustering of features
+
+# %%
+from itertools import combinations
+
+label = attr_pd.index #294
+dicts = dict(zip(label, range(len(label))))
+site_data = visit_pd.values
+
+y = np.zeros([len(label), len(label)])
+
+add = 0
+for i in site_data:
+  for j in list(combinations(i, 2)):
+    add += 1
+    y[dicts[j[0]], dicts[j[1]]] += 1
+    y[dicts[j[1]], dicts[j[0]]] += 1
+
+print(add)
+print(y.shape)
+print(~np.all(y == 0, axis=1))
+# %%
+# empty_col = np.where(np.sum(y, axis=0) == 0)[0]
+exist_col = ~np.all(y == 0, axis=1)
+y = y[exist_col]
+y = y[:, exist_col]
+label = label[exist_col]
+
+print(y.shape, label.shape)
+# %%
+from sklearn.cluster import SpectralClustering, KMeans, DBSCAN
+
+N = 30
+label_class = SpectralClustering(N, affinity='precomputed').fit_predict(y)
+
+classify = [[] for _ in range(N)]
+for i,j in zip(label_class, label):
+  classify[i].append(j)
+
+classify
+# %%
+
+# %%
+d
 
 
 
