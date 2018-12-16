@@ -81,7 +81,63 @@ for k in flat_list:
 
 len(raw_rules)
 
+# %% testing 
+pre_test = None
+test_process = None
+from test_process import pre_test
+
+test_data = pre_test()
 # %%
+def intersect(lst1, lst2):
+  lst3 = [val for val in lst1 if val in lst2]
+  return len(lst3) == len(lst1)
+
+# format: (rule, support, conf, lift)
+stat_rules = []
+test_N = 5000
+
+for rule in raw_rules:
+  supplr, suppl, suppr = 0,0,0
+  for i in test_data:
+    if intersect(rule[0],i):
+      suppl += 1
+    if intersect(rule[1], i):
+      suppr += 1
+    if intersect(rule[0], i) and intersect(rule[1], i):
+      supplr += 1
+
+  support = round(supplr/test_N, 8)
+  conf = round(supplr/suppl,8) if suppl!=0 else 0
+  lift = round(supplr/(suppl*suppr),8) if suppl!=0 and suppr!=0 else 0
+  stat_rules.append([rule, support, conf, lift])
+
+# %%
+stat_rules = np.array(stat_rules)
+sorted_rules = np.array([stat_rules[i] for i in np.lexsort((stat_rules[:,3],stat_rules[:,2],stat_rules[:,1]))] )
+sorted_rules = np.flip(sorted_rules, axis=0)
+
+
+# %%
+def getTitle(id):
+  return attr_pd[attr_pd.index.isin(id)].values.tolist()[0][0]
+
+attr_arr = []
+for i in sorted_rules[:20]:
+  attr_arr.append([getTitle(i[0][0]), getTitle(i[0][1])])
+attr_arr = np.array(attr_arr)
+
+
+# %%
+for i in np.column_stack((attr_arr, sorted_rules[:20])):
+  print(i[:4])
+
+
+# %%
+a = np.array([[1,2],[3,4]])
+b= np.array([5,6])
+np.column_stack((a,b))
+
+
 
 # %%
 target_attrs_df.loc[target_attrs_df.index.isin([1017, 1074, 1009])]

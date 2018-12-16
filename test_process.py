@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import os
 
-def preprocess():
+def pre_test():
   # %%
   data_file = os.getcwd()+'/data/anonymous-msweb.test'
 
@@ -25,17 +25,9 @@ def preprocess():
       elif letter == 'V':
         visit_data[user].append(int(d[1]))
   # %%
-  # create dataframe for attributes & visits
-  attr_pd = pd.DataFrame(
-    attr_data,
-    index = attr_id,
-    columns = ['title', 'url']
-  )
   visit_pd = pd.Series(visit_data)
 
-  
-  
-  
+  return visit_pd.values
   
   
   
